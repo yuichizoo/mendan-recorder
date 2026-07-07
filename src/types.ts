@@ -89,6 +89,17 @@ export interface HistoryRecord extends GenerateResult {
   userText: string
 }
 
+// 送信待ちキュー: 生成失敗時に退避し、オンライン復帰時に再試行する
+export interface QueueItem {
+  id: string
+  createdAt: number
+  mode: Mode
+  interviewType?: InterviewType
+  caseId: string
+  durationSec: number
+  userText: string
+}
+
 export function newId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 }

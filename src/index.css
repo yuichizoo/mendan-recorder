@@ -761,6 +761,32 @@ body {
   max-width: 100%;
 }
 
+/* 送信待ちバナー */
+.queue-banner {
+  position: sticky;
+  top: 51px;
+  z-index: 9;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  background: #fff8e1;
+  border-bottom: 1px solid #f0c36d;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #8a6d1a;
+}
+
+.queue-msg {
+  background: var(--primary-bg);
+  color: var(--primary-dark);
+  border-bottom: 1px solid var(--primary);
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
 /* オンボーディング */
 .onboard-overlay {
   position: fixed;

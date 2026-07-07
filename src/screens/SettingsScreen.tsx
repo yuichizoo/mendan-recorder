@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { CompanyEntry } from '../lib/anonymize'
 import { getApiKey, setApiKey, getCompanies, saveCompanies, clearAllData } from '../lib/settings'
-import { clearHistoryDb } from '../lib/db'
+import { clearHistoryDb, clearQueueDb } from '../lib/db'
 
 export default function SettingsScreen() {
   const [key, setKey] = useState(getApiKey)
@@ -43,6 +43,7 @@ export default function SettingsScreen() {
       return
     clearAllData()
     await clearHistoryDb().catch(() => {})
+    await clearQueueDb().catch(() => {})
     setKey('')
     setCompanies([])
     window.alert('すべてのデータを削除しました。')

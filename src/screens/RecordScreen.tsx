@@ -21,6 +21,7 @@ import { useWakeLock } from '../hooks/useWakeLock'
 import SegmentList from '../components/SegmentList'
 import SendPreview from '../components/SendPreview'
 import { generateText, splitDocAndCheck, ApiError, MODEL_CHECK } from '../lib/api'
+import { addQueue } from '../lib/db'
 import {
   buildSangyoiSystem,
   buildSangyoiUser,
@@ -70,7 +71,7 @@ export default function RecordScreen({ onGenerated }: Props) {
   const timer = useTimer(draft.elapsedSec)
   useWakeLock(timer.running)
   const [generating, setGenerating] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<{ msg: string; queued: boolean } | null>(null)
   const [focusId, setFocusId] = useState<string | null>(null)
   const [checking, setChecking] = useState(false)
   const [checkResult, setCheckResult] = useState<string | null>(null)
@@ -215,8 +216,27 @@ export default function RecordScreen({ onGenerated }: Props) {
         durationSec: timer.elapsedSec,
       })
     } catch (e) {
-      const msg = e instanceof ApiError ? e.message : '予期しないエラーが発生しました。'
-      setError(msg)
+      if (e instanceof ApiError && e.retryable) {
+        // 電波・API障害: 下書きを送信待ちキューへ退避
+        const queued = await addQueue({
+          id: newId(),
+          createdAt: Date.now(),
+          mode: 'sangyoi',
+          interviewType: draft.interviewType,
+          caseId: draft.caseId,
+          durationSec: timer.elapsedSec,
+          userText,
+        })
+          .then(() => true)
+          .catch(() => false)
+        if (queued) window.dispatchEvent(new Event('mr-queue-changed'))
+        setError({ msg: e.message, queued })
+      } else {
+        setError({
+          msg: e instanceof ApiError ? e.message : '予期しないエラーが発生しました。',
+          queued: false,
+        })
+      }
     } finally {
       setGenerating(false)
       setPreviewText(null)
@@ -426,15 +446,26 @@ export default function RecordScreen({ onGenerated }: Props) {
 
       {error && (
         <div className="error-box">
-          <p>{error}</p>
-          <p className="error-safe">メモはこの端末に保存済みです。失われていません。</p>
-          <button
-            className="btn btn-primary"
-            onClick={() => (lastUserRef.current ? generate(lastUserRef.current) : openPreview())}
-            disabled={generating}
-          >
-            再試行
-          </button>
+          <p>{error.msg}</p>
+          {error.queued ? (
+            <p className="error-safe">
+              下書きを「送信待ち」に保存しました。電波が戻ると自動で生成され、履歴に保存されます
+              (画面上部の「今すぐ再試行」も使えます)。
+            </p>
+          ) : (
+            <>
+              <p className="error-safe">メモはこの端末に保存済みです。失われていません。</p>
+              <button
+                className="btn btn-primary"
+                onClick={() =>
+                  lastUserRef.current ? generate(lastUserRef.current) : openPreview()
+                }
+                disabled={generating}
+              >
+                再試行
+              </button>
+            </>
+          )}
         </div>
       )}
 

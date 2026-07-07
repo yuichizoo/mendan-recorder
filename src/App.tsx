@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { HistoryRecord, Mode } from './types'
 import { newId } from './types'
 import Onboarding from './components/Onboarding'
@@ -7,7 +7,7 @@ import HomonRecordScreen from './screens/HomonRecordScreen'
 import ResultScreen from './screens/ResultScreen'
 import HistoryScreen from './screens/HistoryScreen'
 import SettingsScreen from './screens/SettingsScreen'
-import { addHistory } from './lib/db'
+import { addHistory, listQueue, deleteQueue } from './lib/db'
 import { generateText, splitDocAndCheck } from './lib/api'
 import { buildSangyoiSystem } from './lib/prompts/sangyoi'
 import { buildHomonSystem } from './lib/prompts/homon'
@@ -24,6 +24,86 @@ export default function App() {
   const [screen, setScreen] = useState<Screen>('record')
   const [result, setResult] = useState<HistoryRecord | null>(null)
   const [recordKey, setRecordKey] = useState(0)
+  const [queueCount, setQueueCount] = useState(0)
+  const [queueBusy, setQueueBusy] = useState(false)
+  const [queueMsg, setQueueMsg] = useState<string | null>(null)
+  const processingRef = useRef(false)
+
+  const refreshQueueCount = useCallback(async () => {
+    try {
+      setQueueCount((await listQueue()).length)
+    } catch {
+      // IndexedDB不可の環境では0のまま
+    }
+  }, [])
+
+  const processQueue = useCallback(
+    async (auto: boolean) => {
+      if (processingRef.current) return
+      processingRef.current = true
+      setQueueBusy(true)
+      try {
+        const items = await listQueue()
+        let done = 0
+        try {
+          for (const item of items) {
+            const system =
+              item.mode === 'homon'
+                ? buildHomonSystem()
+                : buildSangyoiSystem(item.interviewType ?? 'other')
+            const raw = await generateText({
+              system,
+              user: item.userText,
+              maxTokens: item.mode === 'homon' ? 8192 : 4096,
+            })
+            const { docText, checkText } = splitDocAndCheck(raw)
+            await addHistory({
+              id: newId(),
+              userText: item.userText,
+              mode: item.mode,
+              interviewType: item.interviewType,
+              caseId: item.caseId,
+              docText,
+              checkText,
+              generatedAt: Date.now(),
+              durationSec: item.durationSec,
+            })
+            await deleteQueue(item.id)
+            done++
+          }
+          if (done > 0) {
+            setQueueMsg(`✓ 送信待ち${done}件の生成が完了しました。履歴からご確認ください。`)
+            setTimeout(() => setQueueMsg(null), 8000)
+          }
+        } catch {
+          // 失敗した項目はキューに残る(次のオンライン復帰・手動再試行で再挑戦)
+          if (!auto) {
+            setQueueMsg('再試行に失敗しました。電波状況を確認してください。')
+            setTimeout(() => setQueueMsg(null), 6000)
+          }
+        }
+      } finally {
+        processingRef.current = false
+        setQueueBusy(false)
+        void refreshQueueCount()
+      }
+    },
+    [refreshQueueCount],
+  )
+
+  useEffect(() => {
+    void refreshQueueCount().then(() => {
+      if (navigator.onLine) void processQueue(true)
+    })
+    const onOnline = () => void processQueue(true)
+    const onChanged = () => void refreshQueueCount()
+    window.addEventListener('online', onOnline)
+    window.addEventListener('mr-queue-changed', onChanged)
+    return () => {
+      window.removeEventListener('online', onOnline)
+      window.removeEventListener('mr-queue-changed', onChanged)
+    }
+  }, [processQueue, refreshQueueCount])
 
   function handleGenerated(r: HistoryRecord) {
     setResult(r)
@@ -88,6 +168,16 @@ export default function App() {
           </button>
         </div>
       </header>
+
+      {queueCount > 0 && (
+        <div className="queue-banner">
+          <span>電波不良で送信待ちの下書き: {queueCount}件</span>
+          <button className="btn-mini" onClick={() => void processQueue(false)} disabled={queueBusy}>
+            {queueBusy ? '再試行中…' : '今すぐ再試行'}
+          </button>
+        </div>
+      )}
+      {queueMsg && <div className="queue-msg">{queueMsg}</div>}
 
       <main className="app-main">
         {screen === 'record' ? (
