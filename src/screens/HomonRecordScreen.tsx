@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { GenerateResult, HomonDraft, Segment } from '../types'
+import type { GenerateResult, HomonDraft, HomonTagSet, Segment } from '../types'
 import { useTimer, formatTimer } from '../hooks/useTimer'
 import SegmentList from '../components/SegmentList'
 import { generateText, ApiError, MODEL_CHECK } from '../lib/api'
@@ -12,20 +12,41 @@ import {
 
 const DRAFT_KEY = 'mr_draft_homon'
 
-const QUICK_TAGS = [
-  '心音',
-  '肺音',
-  '腹部',
-  '浮腫',
-  '皮膚',
-  '疼痛',
-  '食事',
-  '排便',
-  '睡眠',
-  '家族の話',
-  '処方変更',
-  '次回予定',
-]
+const QUICK_TAGS: Record<HomonTagSet, string[]> = {
+  general: [
+    '心音',
+    '肺音',
+    '腹部',
+    '浮腫',
+    '皮膚',
+    '疼痛',
+    '食事',
+    '排便',
+    '睡眠',
+    '家族の話',
+    '処方変更',
+    '次回予定',
+  ],
+  palliative: [
+    '疼痛・NRS',
+    'レスキュー回数',
+    'オピオイド',
+    '貼付剤',
+    '点滴・皮下注',
+    '悪心嘔吐',
+    '呼吸苦',
+    'せん妄',
+    '食事',
+    '排便',
+    '家族の話',
+    '次回予定',
+  ],
+}
+
+const TAG_SET_LABELS: Record<HomonTagSet, string> = {
+  general: '一般',
+  palliative: '緩和ケア',
+}
 
 function loadDraft(): HomonDraft {
   try {
@@ -37,12 +58,13 @@ function loadDraft(): HomonDraft {
         prevKarte: parsed.prevKarte ?? '',
         segments: parsed.segments ?? [],
         elapsedSec: parsed.elapsedSec ?? 0,
+        tagSet: parsed.tagSet ?? 'general',
       }
     }
   } catch {
     // 壊れたデータは捨てて新規開始
   }
-  return { patientId: '', prevKarte: '', segments: [], elapsedSec: 0 }
+  return { patientId: '', prevKarte: '', segments: [], elapsedSec: 0, tagSet: 'general' }
 }
 
 function newId(): string {
@@ -68,8 +90,9 @@ export default function HomonRecordScreen({ onGenerated }: Props) {
     localStorage.setItem(DRAFT_KEY, JSON.stringify({ ...draft, elapsedSec: timer.elapsedSec }))
   }, [draft, timer.elapsedSec])
 
+  const tags = QUICK_TAGS[draft.tagSet]
   const usedTags = new Set(
-    QUICK_TAGS.filter((tag) => draft.segments.some((s) => s.text.includes(`【${tag}】`))),
+    tags.filter((tag) => draft.segments.some((s) => s.text.includes(`【${tag}】`))),
   )
 
   function addSegment(prefix = '') {
@@ -99,7 +122,7 @@ export default function HomonRecordScreen({ onGenerated }: Props) {
     if (!window.confirm('前回カルテ・当日メモ・タイマーをすべてクリアします。よろしいですか?'))
       return
     timer.reset()
-    setDraft({ patientId: '', prevKarte: '', segments: [], elapsedSec: 0 })
+    setDraft({ patientId: '', prevKarte: '', segments: [], elapsedSec: 0, tagSet: draft.tagSet })
     setError(null)
     setCheckResult(null)
     setCheckError(null)
@@ -114,7 +137,7 @@ export default function HomonRecordScreen({ onGenerated }: Props) {
       const text = await generateText({
         model: MODEL_CHECK,
         maxTokens: 300,
-        system: buildHomonCheckSystem(),
+        system: buildHomonCheckSystem(draft.tagSet === 'palliative'),
         user: buildHomonCheckUser(draft.segments),
       })
       setCheckResult(text.trim())
@@ -219,9 +242,22 @@ export default function HomonRecordScreen({ onGenerated }: Props) {
       </section>
 
       <section className="field-row">
-        <label className="field-label">クイックタグ(タップで当日メモに挿入)</label>
+        <div className="tag-head-row">
+          <label className="field-label">クイックタグ(タップで当日メモに挿入)</label>
+          <div className="tagset-switch">
+            {(Object.keys(TAG_SET_LABELS) as HomonTagSet[]).map((ts) => (
+              <button
+                key={ts}
+                className={`tagset-btn ${draft.tagSet === ts ? 'tagset-active' : ''}`}
+                onClick={() => setDraft((d) => ({ ...d, tagSet: ts }))}
+              >
+                {TAG_SET_LABELS[ts]}
+              </button>
+            ))}
+          </div>
+        </div>
         <div className="chip-row">
-          {QUICK_TAGS.map((tag) => (
+          {tags.map((tag) => (
             <button
               key={tag}
               className={`chip chip-tag ${usedTags.has(tag) ? 'chip-used' : ''}`}

@@ -338,6 +338,42 @@ body {
   flex: 1.2;
 }
 
+/* タグセット切替(訪問診療) */
+.tag-head-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.tagset-switch {
+  display: flex;
+  border: 1px solid var(--primary);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.tagset-btn {
+  min-height: 32px;
+  padding: 4px 12px;
+  border: none;
+  background: var(--card);
+  color: var(--primary);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.tagset-switch {
+  flex-shrink: 0;
+}
+
+.tagset-active {
+  background: var(--primary);
+  color: #fff;
+}
+
 /* 就業判定 */
 .judgment-card {
   background: var(--card);

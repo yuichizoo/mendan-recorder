@@ -63,11 +63,14 @@ export interface SangyoiDraft {
   judgment: Judgment
 }
 
+export type HomonTagSet = 'general' | 'palliative'
+
 export interface HomonDraft {
   patientId: string
   prevKarte: string
   segments: Segment[]
   elapsedSec: number
+  tagSet: HomonTagSet
 }
 
 export interface GenerateResult {
