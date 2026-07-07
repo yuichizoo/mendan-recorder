@@ -320,6 +320,69 @@ body {
   flex: 1.2;
 }
 
+/* 就業判定 */
+.judgment-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.judgment-toggle {
+  width: 100%;
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 14px;
+  text-align: left;
+}
+
+.judgment-toggle-label {
+  font-weight: 700;
+  color: var(--primary-dark);
+  white-space: nowrap;
+}
+
+.judgment-summary {
+  flex: 1;
+  color: var(--text-sub);
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.judgment-arrow {
+  color: var(--text-sub);
+  font-size: 11px;
+}
+
+.judgment-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 4px 14px 16px;
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
+}
+
+.inline-input-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.inline-num {
+  width: 80px;
+  min-height: 44px;
+  text-align: center;
+}
+
 /* 聞き漏らしチェック結果 */
 .check-panel {
   background: var(--primary-bg);

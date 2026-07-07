@@ -1,5 +1,5 @@
-import type { InterviewType, Segment } from '../../types'
-import { INTERVIEW_TYPE_LABELS } from '../../types'
+import type { InterviewType, Judgment, Segment } from '../../types'
+import { INTERVIEW_TYPE_LABELS, MEASURES, WORK_CLASS_LABELS } from '../../types'
 
 const COMMON_RULES = `あなたは産業医の文書作成アシスタントです。産業医面談の音声入力メモ(セグメント式・誤変換を含みうる)から、企業提出用文書の下書きをプレーンテキストで作成します。
 
@@ -193,6 +193,31 @@ export interface SangyoiUserInput {
   dateStr: string
   durationSec: number
   segments: Segment[]
+  judgment?: Judgment
+}
+
+function judgmentLines(j: Judgment): string | null {
+  const lines: string[] = []
+  if (j.workClass) {
+    lines.push(`- 判定区分: ${WORK_CLASS_LABELS[j.workClass]}`)
+  }
+  if (j.measures.length > 0) {
+    const parts = j.measures.map((key) => {
+      if (key === 'overtime') {
+        return `時間外労働の制限(${j.overtimeLimitH.trim() || '　'}時間/月まで)`
+      }
+      if (key === 'other') {
+        return `その他(${j.measureOther.trim() || '内容未記入'})`
+      }
+      return MEASURES.find((m) => m.key === key)?.label ?? key
+    })
+    lines.push(`- 措置内容: ${parts.join('、')}`)
+  }
+  const period = j.period === 'custom' ? j.periodCustom.trim() : j.period
+  if (period) {
+    lines.push(`- 措置期間: ${period}`)
+  }
+  return lines.length > 0 ? lines.join('\n') : null
 }
 
 export function formatDuration(sec: number): string {
@@ -212,14 +237,25 @@ export function buildSangyoiUser(input: SangyoiUserInput): string {
     })
     .join('\n')
 
+  const jl = input.judgment ? judgmentLines(input.judgment) : null
+  const judgmentBlock = jl
+    ? `# 就業判定(産業医が画面で確定入力した判断)
+${jl}
+
+この判定は確定事項として扱い、文書の該当欄(就業区分・措置・期間)に必ず反映して対応する選択肢を ☒ にすること。テンプレートに同名の選択肢がない措置は「その他」や具体的内容欄に記載する。`
+    : `# 就業判定
+構造化入力なし。判断項目はメモから明確に読み取れる場合のみ選択し、曖昧なら空欄(すべて☐)のままにする。`
+
   return `# 面談情報
 - 面談種別: ${INTERVIEW_TYPE_LABELS[input.type]}
 - 実施日: ${input.dateStr}
 - 面談時間: ${formatDuration(input.durationSec)}
 - 対象者ID: ${input.caseId || '(未入力)'}
 
+${judgmentBlock}
+
 # 面談メモ(時刻順セグメント)
 ${lines}
 
-上記メモから文書の下書きを作成してください。`
+上記から文書の下書きを作成してください。`
 }

@@ -1,6 +1,20 @@
 import { useEffect, useRef, useState } from 'react'
-import type { GenerateResult, InterviewType, SangyoiDraft, Segment } from '../types'
-import { INTERVIEW_TYPE_LABELS } from '../types'
+import type {
+  GenerateResult,
+  InterviewType,
+  Judgment,
+  MeasureKey,
+  SangyoiDraft,
+  Segment,
+  WorkClass,
+} from '../types'
+import {
+  EMPTY_JUDGMENT,
+  INTERVIEW_TYPE_LABELS,
+  MEASURES,
+  PERIOD_PRESETS,
+  WORK_CLASS_LABELS,
+} from '../types'
 import { useTimer, formatTimer } from '../hooks/useTimer'
 import { generateText, ApiError, MODEL_CHECK } from '../lib/api'
 import {
@@ -27,11 +41,20 @@ const QUICK_TAGS = [
 function loadDraft(): SangyoiDraft {
   try {
     const raw = localStorage.getItem(DRAFT_KEY)
-    if (raw) return JSON.parse(raw) as SangyoiDraft
+    if (raw) {
+      const parsed = JSON.parse(raw) as Partial<SangyoiDraft>
+      return {
+        interviewType: parsed.interviewType ?? 'choki',
+        caseId: parsed.caseId ?? '',
+        segments: parsed.segments ?? [],
+        elapsedSec: parsed.elapsedSec ?? 0,
+        judgment: { ...EMPTY_JUDGMENT, ...parsed.judgment },
+      }
+    }
   } catch {
     // 壊れたデータは捨てて新規開始
   }
-  return { interviewType: 'choki', caseId: '', segments: [], elapsedSec: 0 }
+  return { interviewType: 'choki', caseId: '', segments: [], elapsedSec: 0, judgment: { ...EMPTY_JUDGMENT } }
 }
 
 function newId(): string {
@@ -51,6 +74,7 @@ export default function RecordScreen({ onGenerated }: Props) {
   const [checking, setChecking] = useState(false)
   const [checkResult, setCheckResult] = useState<string | null>(null)
   const [checkError, setCheckError] = useState<string | null>(null)
+  const [judgmentOpen, setJudgmentOpen] = useState(false)
   const textareaRefs = useRef(new Map<string, HTMLTextAreaElement>())
   const checkPanelRef = useRef<HTMLDivElement>(null)
 
@@ -96,10 +120,44 @@ export default function RecordScreen({ onGenerated }: Props) {
   }
 
   function clearAll() {
-    if (!window.confirm('メモと面談時間をすべてクリアします。よろしいですか?')) return
+    if (!window.confirm('メモ・就業判定・面談時間をすべてクリアします。よろしいですか?')) return
     timer.reset()
-    setDraft({ interviewType: draft.interviewType, caseId: '', segments: [], elapsedSec: 0 })
+    setDraft({
+      interviewType: draft.interviewType,
+      caseId: '',
+      segments: [],
+      elapsedSec: 0,
+      judgment: { ...EMPTY_JUDGMENT },
+    })
     setError(null)
+  }
+
+  function setJudgment(patch: Partial<Judgment>) {
+    setDraft((d) => ({ ...d, judgment: { ...d.judgment, ...patch } }))
+  }
+
+  function toggleMeasure(key: MeasureKey) {
+    setDraft((d) => {
+      const has = d.judgment.measures.includes(key)
+      return {
+        ...d,
+        judgment: {
+          ...d.judgment,
+          measures: has
+            ? d.judgment.measures.filter((k) => k !== key)
+            : [...d.judgment.measures, key],
+        },
+      }
+    })
+  }
+
+  function judgmentSummary(j: Judgment): string {
+    const parts: string[] = []
+    if (j.workClass) parts.push(WORK_CLASS_LABELS[j.workClass])
+    if (j.measures.length > 0) parts.push(`措置${j.measures.length}件`)
+    const period = j.period === 'custom' ? j.periodCustom : j.period
+    if (period) parts.push(period)
+    return parts.length > 0 ? parts.join(' / ') : '未入力'
   }
 
   const hasContent = draft.segments.some((s) => s.text.trim())
@@ -140,6 +198,7 @@ export default function RecordScreen({ onGenerated }: Props) {
           dateStr,
           durationSec: timer.elapsedSec,
           segments: draft.segments,
+          judgment: draft.judgment,
         }),
       })
       const marker = '---要確認---'
@@ -276,6 +335,105 @@ export default function RecordScreen({ onGenerated }: Props) {
         <button className="btn btn-add" onClick={() => addSegment()}>
           + メモ追加
         </button>
+      </section>
+
+      <section className="judgment-card">
+        <button className="judgment-toggle" onClick={() => setJudgmentOpen((o) => !o)}>
+          <span className="judgment-toggle-label">就業判定(タップで入力)</span>
+          <span className="judgment-summary">{judgmentSummary(draft.judgment)}</span>
+          <span className="judgment-arrow">{judgmentOpen ? '▲' : '▼'}</span>
+        </button>
+
+        {judgmentOpen && (
+          <div className="judgment-body">
+            <div className="field-row">
+              <label className="field-label">判定区分</label>
+              <div className="chip-row">
+                {(Object.keys(WORK_CLASS_LABELS) as WorkClass[]).map((wc) => (
+                  <button
+                    key={wc}
+                    className={`chip ${draft.judgment.workClass === wc ? 'chip-active' : ''}`}
+                    onClick={() =>
+                      setJudgment({ workClass: draft.judgment.workClass === wc ? null : wc })
+                    }
+                  >
+                    {WORK_CLASS_LABELS[wc]}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="field-row">
+              <label className="field-label">措置内容(複数選択可)</label>
+              <div className="chip-row">
+                {MEASURES.map((m) => (
+                  <button
+                    key={m.key}
+                    className={`chip ${draft.judgment.measures.includes(m.key) ? 'chip-active' : ''}`}
+                    onClick={() => toggleMeasure(m.key)}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+              {draft.judgment.measures.includes('overtime') && (
+                <div className="inline-input-row">
+                  <span>時間外労働:</span>
+                  <input
+                    className="text-input inline-num"
+                    type="number"
+                    inputMode="numeric"
+                    placeholder="45"
+                    value={draft.judgment.overtimeLimitH}
+                    onChange={(e) => setJudgment({ overtimeLimitH: e.target.value })}
+                  />
+                  <span>時間/月まで</span>
+                </div>
+              )}
+              {draft.judgment.measures.includes('other') && (
+                <input
+                  className="text-input"
+                  type="text"
+                  placeholder="その他の措置内容を入力"
+                  value={draft.judgment.measureOther}
+                  onChange={(e) => setJudgment({ measureOther: e.target.value })}
+                />
+              )}
+            </div>
+
+            <div className="field-row">
+              <label className="field-label">措置期間</label>
+              <div className="chip-row">
+                {PERIOD_PRESETS.map((p) => (
+                  <button
+                    key={p}
+                    className={`chip ${draft.judgment.period === p ? 'chip-active' : ''}`}
+                    onClick={() => setJudgment({ period: draft.judgment.period === p ? null : p })}
+                  >
+                    {p}
+                  </button>
+                ))}
+                <button
+                  className={`chip ${draft.judgment.period === 'custom' ? 'chip-active' : ''}`}
+                  onClick={() =>
+                    setJudgment({ period: draft.judgment.period === 'custom' ? null : 'custom' })
+                  }
+                >
+                  自由入力
+                </button>
+              </div>
+              {draft.judgment.period === 'custom' && (
+                <input
+                  className="text-input"
+                  type="text"
+                  placeholder="例: 2週間、次回健診まで"
+                  value={draft.judgment.periodCustom}
+                  onChange={(e) => setJudgment({ periodCustom: e.target.value })}
+                />
+              )}
+            </div>
+          </div>
+        )}
       </section>
 
       {(checkResult || checkError) && (
