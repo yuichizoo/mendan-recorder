@@ -7,7 +7,8 @@ import HomonRecordScreen from './screens/HomonRecordScreen'
 import ResultScreen from './screens/ResultScreen'
 import HistoryScreen from './screens/HistoryScreen'
 import SettingsScreen from './screens/SettingsScreen'
-import { addHistory, listQueue, deleteQueue } from './lib/db'
+import { addHistory, listHistory, listQueue, deleteQueue } from './lib/db'
+import { getLastBackupAt, isBackupOverdue } from './lib/backup'
 import { generateText, splitDocAndCheck } from './lib/api'
 import { buildSangyoiSystem } from './lib/prompts/sangyoi'
 import { buildHomonSystem } from './lib/prompts/homon'
@@ -27,7 +28,18 @@ export default function App() {
   const [queueCount, setQueueCount] = useState(0)
   const [queueBusy, setQueueBusy] = useState(false)
   const [queueMsg, setQueueMsg] = useState<string | null>(null)
+  const [lastBackupAt, setLastBackupAt] = useState<number | null>(getLastBackupAt)
+  const [hasHistory, setHasHistory] = useState(false)
   const processingRef = useRef(false)
+
+  const refreshBackupStatus = useCallback(async () => {
+    setLastBackupAt(getLastBackupAt())
+    try {
+      setHasHistory((await listHistory()).length > 0)
+    } catch {
+      // IndexedDB不可の環境では未表示のまま
+    }
+  }, [])
 
   const refreshQueueCount = useCallback(async () => {
     try {
@@ -95,20 +107,26 @@ export default function App() {
     void refreshQueueCount().then(() => {
       if (navigator.onLine) void processQueue(true)
     })
+    void refreshBackupStatus()
     const onOnline = () => void processQueue(true)
     const onChanged = () => void refreshQueueCount()
+    const onBackupChanged = () => void refreshBackupStatus()
     window.addEventListener('online', onOnline)
     window.addEventListener('mr-queue-changed', onChanged)
+    window.addEventListener('mr-backup-changed', onBackupChanged)
     return () => {
       window.removeEventListener('online', onOnline)
       window.removeEventListener('mr-queue-changed', onChanged)
+      window.removeEventListener('mr-backup-changed', onBackupChanged)
     }
-  }, [processQueue, refreshQueueCount])
+  }, [processQueue, refreshQueueCount, refreshBackupStatus])
 
   function handleGenerated(r: HistoryRecord) {
     setResult(r)
     // 履歴への保存失敗(プライベートブラウズ等)でも結果表示は続行する
-    void addHistory(r).catch(() => {})
+    void addHistory(r)
+      .catch(() => {})
+      .then(() => refreshBackupStatus())
     setScreen('result')
   }
 
@@ -168,6 +186,20 @@ export default function App() {
           </button>
         </div>
       </header>
+
+      {isBackupOverdue(lastBackupAt, hasHistory) ? (
+        <button className="backup-banner" onClick={() => setScreen('settings')}>
+          ⚠ バックアップが
+          {lastBackupAt === null ? 'まだ一度もされていません' : '30日以上されていません'}
+          。タップして設定からエクスポート
+        </button>
+      ) : (
+        <div className="backup-status">
+          {lastBackupAt
+            ? `最終バックアップ: ${new Date(lastBackupAt).toLocaleDateString('ja-JP')}`
+            : 'バックアップ: 未実施(履歴なし)'}
+        </div>
+      )}
 
       {queueCount > 0 && (
         <div className="queue-banner">

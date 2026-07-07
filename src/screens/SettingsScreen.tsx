@@ -1,12 +1,56 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { CompanyEntry } from '../lib/anonymize'
 import { getApiKey, setApiKey, getCompanies, saveCompanies, clearAllData } from '../lib/settings'
 import { clearHistoryDb, clearQueueDb } from '../lib/db'
+import { exportBackup, importBackup, getLastBackupAt } from '../lib/backup'
 
 export default function SettingsScreen() {
   const [key, setKey] = useState(getApiKey)
   const [saved, setSaved] = useState(false)
   const [companies, setCompanies] = useState<CompanyEntry[]>(getCompanies)
+  const [backupMsg, setBackupMsg] = useState<string | null>(null)
+  const [backupBusy, setBackupBusy] = useState(false)
+  const [lastBackup, setLastBackup] = useState<number | null>(getLastBackupAt)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  async function doExport() {
+    setBackupBusy(true)
+    setBackupMsg(null)
+    try {
+      const outcome = await exportBackup()
+      if (outcome === 'empty') {
+        setBackupMsg('履歴がまだないため、エクスポートするものがありません。')
+      } else if (outcome === 'cancelled') {
+        setBackupMsg('エクスポートをキャンセルしました。')
+      } else {
+        setLastBackup(getLastBackupAt())
+        setBackupMsg(
+          outcome === 'shared'
+            ? '✓ 共有シートからバックアップを保存しました。'
+            : '✓ バックアップファイルをダウンロードしました。',
+        )
+      }
+    } catch {
+      setBackupMsg('エクスポートに失敗しました。')
+    } finally {
+      setBackupBusy(false)
+    }
+  }
+
+  async function doImport(file: File) {
+    setBackupBusy(true)
+    setBackupMsg(null)
+    try {
+      const text = await file.text()
+      const { added, skipped } = await importBackup(text)
+      setBackupMsg(`✓ インポート完了: ${added}件追加、${skipped}件スキップ(重複・不正データ)。`)
+    } catch (e) {
+      setBackupMsg(e instanceof Error ? e.message : 'インポートに失敗しました。')
+    } finally {
+      setBackupBusy(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
 
   function save() {
     setApiKey(key.trim())
@@ -107,6 +151,40 @@ export default function SettingsScreen() {
         <button className="btn btn-outline" onClick={addCompany}>
           + 企業を追加
         </button>
+      </section>
+
+      <section className="field-row">
+        <label className="field-label">バックアップ(履歴のエクスポート/インポート)</label>
+        <p className="field-hint">
+          履歴はこの端末内にのみ保存されるため、機種変更や誤削除に備えて定期的にエクスポートしてください。
+          {lastBackup
+            ? ` 最終バックアップ: ${new Date(lastBackup).toLocaleDateString('ja-JP')}`
+            : ' まだバックアップしていません。'}
+        </p>
+        <button className="btn btn-primary" onClick={doExport} disabled={backupBusy}>
+          {backupBusy ? '処理中…' : '全履歴をエクスポート'}
+        </button>
+        <button
+          className="btn btn-outline"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={backupBusy}
+        >
+          バックアップから復元(インポート)
+        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".json,application/json"
+          style={{ display: 'none' }}
+          onChange={(e) => {
+            const f = e.target.files?.[0]
+            if (f) void doImport(f)
+          }}
+        />
+        <p className="field-hint">
+          インポートは既存の履歴に追加(マージ)され、同じ記録は自動でスキップされます。
+        </p>
+        {backupMsg && <p className="backup-msg">{backupMsg}</p>}
       </section>
 
       <section className="field-row danger-zone">
