@@ -77,7 +77,7 @@ body {
 
 .app-main {
   flex: 1;
-  padding: 16px 16px calc(88px + env(safe-area-inset-bottom));
+  padding: 16px 16px calc(150px + env(safe-area-inset-bottom));
 }
 
 .screen {
@@ -298,6 +298,62 @@ body {
   margin: 0 auto;
   padding: 8px 16px;
   background: linear-gradient(transparent, var(--bg) 40%);
+}
+
+.generate-row {
+  display: flex;
+  gap: 10px;
+}
+
+.btn-check {
+  flex: 1;
+  min-height: 54px;
+  font-size: 14px;
+  padding: 10px 6px;
+  white-space: nowrap;
+  background: var(--card);
+  border: 1.5px solid var(--primary);
+  color: var(--primary);
+}
+
+.btn-generate {
+  flex: 1.2;
+}
+
+/* 聞き漏らしチェック結果 */
+.check-panel {
+  background: var(--primary-bg);
+  border: 1px solid var(--primary);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+
+.check-panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.check-panel-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--primary-dark);
+}
+
+.check-panel-body {
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-family: inherit;
+  font-size: 15px;
+  line-height: 1.9;
+  margin: 6px 0 0;
+  color: var(--text);
+}
+
+.check-panel-error {
+  margin: 6px 0 0;
+  font-size: 14px;
+  color: var(--danger);
 }
 
 /* エラー・通知 */

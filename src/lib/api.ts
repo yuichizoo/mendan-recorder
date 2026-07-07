@@ -3,7 +3,9 @@ import { getApiKey } from './settings'
 // AI呼び出し層。フェーズ2(Cloudflare Workersプロキシ)への移行時は
 // ENDPOINT と buildHeaders() の差し替えだけで済むようにここに集約する。
 const ENDPOINT = 'https://api.anthropic.com/v1/messages'
-const MODEL = 'claude-sonnet-4-6'
+// 文書生成は品質重視、聞き漏らしチェックは速度重視でモデルを使い分ける
+export const MODEL_GENERATE = 'claude-sonnet-4-6'
+export const MODEL_CHECK = 'claude-haiku-4-5'
 
 export class ApiError extends Error {
   retryable: boolean
@@ -30,6 +32,7 @@ export interface GenerateOptions {
   system: string
   user: string
   maxTokens?: number
+  model?: string
 }
 
 export async function generateText(opts: GenerateOptions): Promise<string> {
@@ -40,7 +43,7 @@ export async function generateText(opts: GenerateOptions): Promise<string> {
       method: 'POST',
       headers,
       body: JSON.stringify({
-        model: MODEL,
+        model: opts.model ?? MODEL_GENERATE,
         max_tokens: opts.maxTokens ?? 4096,
         system: opts.system,
         messages: [{ role: 'user', content: opts.user }],

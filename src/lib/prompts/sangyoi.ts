@@ -136,6 +136,57 @@ export function buildSangyoiSystem(type: InterviewType): string {
   return `${COMMON_RULES}\n\n${TEMPLATES[type]}`
 }
 
+// 聞き漏らしチェック: 報告書作成に必須の項目リスト(種別ごと)
+const CHECKLISTS: Record<InterviewType, string[]> = {
+  choki: [
+    '直近の時間外労働時間(数値)',
+    '睡眠時間・質',
+    '疲労蓄積の自覚症状',
+    '既往歴・服薬',
+    '業務内容と負荷要因',
+    '本人の措置への意向',
+  ],
+  kostress: [
+    'ストレス要因(業務量/人間関係/裁量)',
+    '心身の症状',
+    '睡眠',
+    '食欲',
+    '受診状況',
+    '本人の希望',
+  ],
+  fukushoku: [
+    '現在の症状と安定性',
+    '生活リズム',
+    '通勤可否',
+    '主治医の意見の有無',
+    '本人の復職意欲',
+    '段階的復帰の要否',
+  ],
+  other: ['現在の体調', '勤務状況', '通院・服薬状況', '本人の希望'],
+}
+
+export function buildCheckSystem(type: InterviewType): string {
+  const list = CHECKLISTS[type].map((item) => `- ${item}`).join('\n')
+  return `あなたは産業医面談の聞き漏らし防止アシスタントです。面談メモを読み、報告書作成に必須の項目のうち「メモにまだ含まれていない、または情報が不十分な項目」だけを返します。
+
+# 必須項目リスト(面談種別: ${INTERVIEW_TYPE_LABELS[type]})
+${list}
+
+# 出力ルール
+- 不足項目のみを「・項目名」の箇条書きで返す。1項目1行、補足は書かない。
+- メモに少しでも具体的な言及があれば「含まれている」と判定する(厳しくしすぎない)。
+- すべて揃っていれば「✓ 必須項目はすべて記録されています」とだけ返す。
+- 前置き・後書き・説明は一切書かない。`
+}
+
+export function buildCheckUser(type: InterviewType, segments: Segment[]): string {
+  const memo = segments
+    .filter((s) => s.text.trim())
+    .map((s) => s.text.trim())
+    .join('\n')
+  return `# 面談種別\n${INTERVIEW_TYPE_LABELS[type]}\n\n# ここまでの面談メモ\n${memo}\n\n不足している必須項目を返してください。`
+}
+
 export interface SangyoiUserInput {
   type: InterviewType
   caseId: string

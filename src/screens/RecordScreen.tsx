@@ -2,8 +2,13 @@ import { useEffect, useRef, useState } from 'react'
 import type { GenerateResult, InterviewType, SangyoiDraft, Segment } from '../types'
 import { INTERVIEW_TYPE_LABELS } from '../types'
 import { useTimer, formatTimer } from '../hooks/useTimer'
-import { generateText, ApiError } from '../lib/api'
-import { buildSangyoiSystem, buildSangyoiUser } from '../lib/prompts/sangyoi'
+import { generateText, ApiError, MODEL_CHECK } from '../lib/api'
+import {
+  buildSangyoiSystem,
+  buildSangyoiUser,
+  buildCheckSystem,
+  buildCheckUser,
+} from '../lib/prompts/sangyoi'
 
 const DRAFT_KEY = 'mr_draft_sangyoi'
 
@@ -43,7 +48,11 @@ export default function RecordScreen({ onGenerated }: Props) {
   const [generating, setGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [focusId, setFocusId] = useState<string | null>(null)
+  const [checking, setChecking] = useState(false)
+  const [checkResult, setCheckResult] = useState<string | null>(null)
+  const [checkError, setCheckError] = useState<string | null>(null)
   const textareaRefs = useRef(new Map<string, HTMLTextAreaElement>())
+  const checkPanelRef = useRef<HTMLDivElement>(null)
 
   // メモが電波・障害で失われないよう常にローカル保存
   useEffect(() => {
@@ -94,6 +103,27 @@ export default function RecordScreen({ onGenerated }: Props) {
   }
 
   const hasContent = draft.segments.some((s) => s.text.trim())
+
+  async function runCheck() {
+    setChecking(true)
+    setCheckError(null)
+    try {
+      const text = await generateText({
+        model: MODEL_CHECK,
+        maxTokens: 300,
+        system: buildCheckSystem(draft.interviewType),
+        user: buildCheckUser(draft.interviewType, draft.segments),
+      })
+      setCheckResult(text.trim())
+    } catch (e) {
+      const msg = e instanceof ApiError ? e.message : '予期しないエラーが発生しました。'
+      setCheckError(msg)
+      setCheckResult(null)
+    } finally {
+      setChecking(false)
+      setTimeout(() => checkPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50)
+    }
+  }
 
   async function generate() {
     timer.pause()
@@ -248,6 +278,28 @@ export default function RecordScreen({ onGenerated }: Props) {
         </button>
       </section>
 
+      {(checkResult || checkError) && (
+        <div className="check-panel" ref={checkPanelRef}>
+          <div className="check-panel-head">
+            <span className="check-panel-title">聞き漏らしチェック</span>
+            <button
+              className="segment-delete"
+              onClick={() => {
+                setCheckResult(null)
+                setCheckError(null)
+              }}
+            >
+              閉じる
+            </button>
+          </div>
+          {checkError ? (
+            <p className="check-panel-error">{checkError}</p>
+          ) : (
+            <pre className="check-panel-body">{checkResult}</pre>
+          )}
+        </div>
+      )}
+
       {error && (
         <div className="error-box">
           <p>{error}</p>
@@ -259,13 +311,22 @@ export default function RecordScreen({ onGenerated }: Props) {
       )}
 
       <div className="generate-bar">
-        <button
-          className="btn btn-generate"
-          onClick={generate}
-          disabled={!hasContent || generating}
-        >
-          {generating ? '生成中…' : '文書を生成'}
-        </button>
+        <div className="generate-row">
+          <button
+            className="btn btn-check"
+            onClick={runCheck}
+            disabled={!hasContent || checking || generating}
+          >
+            {checking ? '確認中…' : '聞き漏らしチェック'}
+          </button>
+          <button
+            className="btn btn-generate"
+            onClick={generate}
+            disabled={!hasContent || generating || checking}
+          >
+            {generating ? '生成中…' : '文書を生成'}
+          </button>
+        </div>
       </div>
     </div>
   )
