@@ -1,13 +1,17 @@
 import { useState } from 'react'
 import type { GenerateResult, Mode } from './types'
 import RecordScreen from './screens/RecordScreen'
+import HomonRecordScreen from './screens/HomonRecordScreen'
 import ResultScreen from './screens/ResultScreen'
 import SettingsScreen from './screens/SettingsScreen'
 
 type Screen = 'record' | 'result' | 'history' | 'settings'
 
 const RESULT_KEY = 'mr_last_result'
-const DRAFT_KEY = 'mr_draft_sangyoi'
+const DRAFT_KEYS: Record<Mode, string> = {
+  sangyoi: 'mr_draft_sangyoi',
+  homon: 'mr_draft_homon',
+}
 
 function loadLastResult(): GenerateResult | null {
   try {
@@ -31,7 +35,8 @@ export default function App() {
   }
 
   function handleNewInterview() {
-    localStorage.removeItem(DRAFT_KEY)
+    const targetMode = result?.mode ?? mode
+    localStorage.removeItem(DRAFT_KEYS[targetMode])
     setRecordKey((k) => k + 1)
     setScreen('record')
   }
@@ -62,12 +67,12 @@ export default function App() {
       </header>
 
       <main className="app-main">
-        {mode === 'homon' ? (
-          <div className="screen">
-            <p className="empty-hint">訪問診療モードは実装順④で追加予定です。</p>
-          </div>
-        ) : screen === 'record' ? (
-          <RecordScreen key={recordKey} onGenerated={handleGenerated} />
+        {screen === 'record' ? (
+          mode === 'homon' ? (
+            <HomonRecordScreen key={`h${recordKey}`} onGenerated={handleGenerated} />
+          ) : (
+            <RecordScreen key={`s${recordKey}`} onGenerated={handleGenerated} />
+          )
         ) : screen === 'result' && result ? (
           <ResultScreen
             result={result}
@@ -88,8 +93,7 @@ export default function App() {
         )}
       </main>
 
-      {mode === 'sangyoi' && (
-        <nav className="bottom-nav">
+      <nav className="bottom-nav">
           <button
             className={`nav-item ${screen === 'record' || screen === 'result' ? 'nav-active' : ''}`}
             onClick={() => setScreen('record')}
@@ -109,7 +113,6 @@ export default function App() {
             設定
           </button>
         </nav>
-      )}
     </div>
   )
 }

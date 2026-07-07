@@ -143,6 +143,24 @@ body {
   border-color: var(--primary);
 }
 
+.paste-area {
+  width: 100%;
+  min-height: 140px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 14px;
+  line-height: 1.6;
+  font-family: inherit;
+  background: var(--card);
+  resize: vertical;
+}
+
+.paste-area:focus {
+  outline: 2px solid var(--primary);
+  border-color: var(--primary);
+}
+
 .chip-row {
   display: flex;
   flex-wrap: wrap;

@@ -63,9 +63,16 @@ export interface SangyoiDraft {
   judgment: Judgment
 }
 
+export interface HomonDraft {
+  patientId: string
+  prevKarte: string
+  segments: Segment[]
+  elapsedSec: number
+}
+
 export interface GenerateResult {
   mode: Mode
-  interviewType: InterviewType
+  interviewType?: InterviewType
   caseId: string
   docText: string
   checkText: string

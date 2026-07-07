@@ -16,6 +16,7 @@ import {
   WORK_CLASS_LABELS,
 } from '../types'
 import { useTimer, formatTimer } from '../hooks/useTimer'
+import SegmentList from '../components/SegmentList'
 import { generateText, ApiError, MODEL_CHECK } from '../lib/api'
 import {
   buildSangyoiSystem,
@@ -75,22 +76,12 @@ export default function RecordScreen({ onGenerated }: Props) {
   const [checkResult, setCheckResult] = useState<string | null>(null)
   const [checkError, setCheckError] = useState<string | null>(null)
   const [judgmentOpen, setJudgmentOpen] = useState(false)
-  const textareaRefs = useRef(new Map<string, HTMLTextAreaElement>())
   const checkPanelRef = useRef<HTMLDivElement>(null)
 
   // メモが電波・障害で失われないよう常にローカル保存
   useEffect(() => {
     localStorage.setItem(DRAFT_KEY, JSON.stringify({ ...draft, elapsedSec: timer.elapsedSec }))
   }, [draft, timer.elapsedSec])
-
-  useEffect(() => {
-    if (!focusId) return
-    const el = textareaRefs.current.get(focusId)
-    if (el) {
-      el.focus()
-      setFocusId(null)
-    }
-  }, [focusId, draft.segments])
 
   const usedTags = new Set(
     QUICK_TAGS.filter((tag) => draft.segments.some((s) => s.text.includes(`【${tag}】`))),
@@ -286,56 +277,21 @@ export default function RecordScreen({ onGenerated }: Props) {
         </div>
       </section>
 
-      <section className="segments">
-        {draft.segments.length === 0 && (
-          <p className="empty-hint">
+      <SegmentList
+        segments={draft.segments}
+        focusId={focusId}
+        onFocusDone={() => setFocusId(null)}
+        onUpdate={updateSegment}
+        onDelete={deleteSegment}
+        onAdd={() => addSegment()}
+        emptyHint={
+          <>
             「+ メモ追加」を押してから、キーボードのマイクで音声入力してください。
             <br />
             ディクテーションが途切れたら、次のメモで再開すればOKです。
-          </p>
-        )}
-        {draft.segments.map((seg) => {
-          const d = new Date(seg.ts)
-          const time = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
-          return (
-            <div key={seg.id} className="segment-card">
-              <div className="segment-head">
-                <span className="segment-time">{time}</span>
-                <button
-                  className="segment-delete"
-                  onClick={() => deleteSegment(seg.id)}
-                  aria-label="このメモを削除"
-                >
-                  削除
-                </button>
-              </div>
-              <textarea
-                ref={(el) => {
-                  if (el) {
-                    textareaRefs.current.set(seg.id, el)
-                    el.style.height = 'auto'
-                    el.style.height = `${el.scrollHeight}px`
-                  } else {
-                    textareaRefs.current.delete(seg.id)
-                  }
-                }}
-                className="segment-text"
-                value={seg.text}
-                rows={2}
-                placeholder="ここに音声入力"
-                onChange={(e) => {
-                  updateSegment(seg.id, e.target.value)
-                  e.target.style.height = 'auto'
-                  e.target.style.height = `${e.target.scrollHeight}px`
-                }}
-              />
-            </div>
-          )
-        })}
-        <button className="btn btn-add" onClick={() => addSegment()}>
-          + メモ追加
-        </button>
-      </section>
+          </>
+        }
+      />
 
       <section className="judgment-card">
         <button className="judgment-toggle" onClick={() => setJudgmentOpen((o) => !o)}>

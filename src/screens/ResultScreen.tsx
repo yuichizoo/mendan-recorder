@@ -23,7 +23,11 @@ export default function ResultScreen({ result, onBack, onNewInterview }: Props) 
   }
 
   const d = new Date(result.generatedAt)
-  const meta = `${INTERVIEW_TYPE_LABELS[result.interviewType]} / ID: ${result.caseId || '未入力'} / 面談時間: ${formatDuration(result.durationSec)} / 生成: ${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+  const typeLabel =
+    result.mode === 'homon'
+      ? '訪問診療カルテ'
+      : INTERVIEW_TYPE_LABELS[result.interviewType ?? 'other']
+  const meta = `${typeLabel} / ID: ${result.caseId || '未入力'} / 所要: ${formatDuration(result.durationSec)} / 生成: ${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 
   return (
     <div className="screen">
@@ -47,7 +51,7 @@ export default function ResultScreen({ result, onBack, onNewInterview }: Props) 
           メモに戻る(再編集・再生成)
         </button>
         <button className="btn btn-primary" onClick={onNewInterview}>
-          新しい面談を開始
+          {result.mode === 'homon' ? '次の患者へ(メモをクリア)' : '新しい面談を開始'}
         </button>
       </div>
     </div>
