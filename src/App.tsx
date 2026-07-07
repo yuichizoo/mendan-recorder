@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { HistoryRecord, Mode } from './types'
 import { newId } from './types'
+import Onboarding from './components/Onboarding'
 import RecordScreen from './screens/RecordScreen'
 import HomonRecordScreen from './screens/HomonRecordScreen'
 import ResultScreen from './screens/ResultScreen'
@@ -64,6 +65,7 @@ export default function App() {
 
   return (
     <div className="app" data-mode={mode}>
+      <Onboarding />
       <header className="app-header">
         <div className="mode-tabs">
           <button

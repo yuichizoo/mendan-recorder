@@ -761,6 +761,46 @@ body {
   max-width: 100%;
 }
 
+/* オンボーディング */
+.onboard-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.onboard-card {
+  background: var(--card);
+  border-radius: 16px 16px 0 0;
+  padding: 24px 20px calc(24px + env(safe-area-inset-bottom));
+  max-width: 560px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.onboard-title {
+  font-size: 18px;
+  margin: 0;
+}
+
+.onboard-text {
+  font-size: 14px;
+  line-height: 1.8;
+  margin: 0;
+}
+
+.onboard-steps {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 14px;
+  line-height: 2;
+}
+
 /* 下部ナビ */
 .bottom-nav {
   position: fixed;

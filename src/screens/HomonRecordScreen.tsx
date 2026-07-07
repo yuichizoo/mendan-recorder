@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { HistoryRecord, HomonDraft, HomonTagSet, Segment } from '../types'
 import { newId } from '../types'
 import { useTimer, formatTimer } from '../hooks/useTimer'
+import { useWakeLock } from '../hooks/useWakeLock'
 import SegmentList from '../components/SegmentList'
 import SendPreview from '../components/SendPreview'
 import { generateText, splitDocAndCheck, ApiError, MODEL_CHECK } from '../lib/api'
@@ -76,6 +77,7 @@ interface Props {
 export default function HomonRecordScreen({ onGenerated }: Props) {
   const [draft, setDraft] = useState<HomonDraft>(loadDraft)
   const timer = useTimer(draft.elapsedSec)
+  useWakeLock(timer.running)
   const [generating, setGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [focusId, setFocusId] = useState<string | null>(null)
