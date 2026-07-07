@@ -1,16 +1,20 @@
 import { useState } from 'react'
-import type { GenerateResult } from '../types'
+import type { HistoryRecord } from '../types'
 import { INTERVIEW_TYPE_LABELS } from '../types'
 import { formatDuration } from '../lib/prompts/sangyoi'
+import { ApiError } from '../lib/api'
 
 interface Props {
-  result: GenerateResult
+  result: HistoryRecord
   onBack: () => void
   onNewInterview: () => void
+  onRegenerate: () => Promise<void>
 }
 
-export default function ResultScreen({ result, onBack, onNewInterview }: Props) {
+export default function ResultScreen({ result, onBack, onNewInterview, onRegenerate }: Props) {
   const [copied, setCopied] = useState(false)
+  const [regenerating, setRegenerating] = useState(false)
+  const [regenError, setRegenError] = useState<string | null>(null)
 
   async function copy() {
     try {
@@ -19,6 +23,20 @@ export default function ResultScreen({ result, onBack, onNewInterview }: Props) 
       setTimeout(() => setCopied(false), 2000)
     } catch {
       window.alert('コピーに失敗しました。文書を長押しして選択コピーしてください。')
+    }
+  }
+
+  async function regenerate() {
+    if (!window.confirm('同じ送信内容でもう一度生成します(API利用料がかかります)。よろしいですか?'))
+      return
+    setRegenerating(true)
+    setRegenError(null)
+    try {
+      await onRegenerate()
+    } catch (e) {
+      setRegenError(e instanceof ApiError ? e.message : '再生成に失敗しました。')
+    } finally {
+      setRegenerating(false)
     }
   }
 
@@ -46,11 +64,20 @@ export default function ResultScreen({ result, onBack, onNewInterview }: Props) 
         </div>
       )}
 
+      {regenError && (
+        <div className="error-box">
+          <p>{regenError}</p>
+        </div>
+      )}
+
       <div className="result-actions">
-        <button className="btn btn-outline" onClick={onBack}>
+        <button className="btn btn-outline" onClick={regenerate} disabled={regenerating}>
+          {regenerating ? '再生成中…' : '同じ内容で再生成'}
+        </button>
+        <button className="btn btn-outline" onClick={onBack} disabled={regenerating}>
           メモに戻る(再編集・再生成)
         </button>
-        <button className="btn btn-primary" onClick={onNewInterview}>
+        <button className="btn btn-primary" onClick={onNewInterview} disabled={regenerating}>
           {result.mode === 'homon' ? '次の患者へ(メモをクリア)' : '新しい面談を開始'}
         </button>
       </div>

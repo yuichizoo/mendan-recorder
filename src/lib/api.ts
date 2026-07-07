@@ -35,6 +35,16 @@ export interface GenerateOptions {
   model?: string
 }
 
+// 生成結果を「文書本文」と「要確認リスト」に分割する
+export function splitDocAndCheck(raw: string): { docText: string; checkText: string } {
+  const marker = '---要確認---'
+  const idx = raw.indexOf(marker)
+  return {
+    docText: (idx >= 0 ? raw.slice(0, idx) : raw).trim(),
+    checkText: idx >= 0 ? raw.slice(idx + marker.length).trim() : '',
+  }
+}
+
 export async function generateText(opts: GenerateOptions): Promise<string> {
   const headers = buildHeaders()
   let res: Response

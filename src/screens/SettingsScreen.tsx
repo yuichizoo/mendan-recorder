@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { CompanyEntry } from '../lib/anonymize'
 import { getApiKey, setApiKey, getCompanies, saveCompanies, clearAllData } from '../lib/settings'
+import { clearHistoryDb } from '../lib/db'
 
 export default function SettingsScreen() {
   const [key, setKey] = useState(getApiKey)
@@ -33,14 +34,15 @@ export default function SettingsScreen() {
     updateCompanies(companies.filter((c) => c.id !== id))
   }
 
-  function deleteAll() {
+  async function deleteAll() {
     if (
       !window.confirm(
-        'APIキー・企業名辞書・メモの下書き・生成結果など、このアプリのデータをすべて削除します。よろしいですか?',
+        'APIキー・企業名辞書・メモの下書き・履歴など、このアプリのデータをすべて削除します。よろしいですか?',
       )
     )
       return
     clearAllData()
+    await clearHistoryDb().catch(() => {})
     setKey('')
     setCompanies([])
     window.alert('すべてのデータを削除しました。')

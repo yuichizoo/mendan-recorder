@@ -82,3 +82,13 @@ export interface GenerateResult {
   generatedAt: number
   durationSec: number
 }
+
+// 履歴レコード: 生成結果+再生成に必要な送信内容
+export interface HistoryRecord extends GenerateResult {
+  id: string
+  userText: string
+}
+
+export function newId(): string {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+}

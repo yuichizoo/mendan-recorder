@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type {
-  GenerateResult,
+  HistoryRecord,
   InterviewType,
   Judgment,
   MeasureKey,
@@ -14,11 +14,12 @@ import {
   MEASURES,
   PERIOD_PRESETS,
   WORK_CLASS_LABELS,
+  newId,
 } from '../types'
 import { useTimer, formatTimer } from '../hooks/useTimer'
 import SegmentList from '../components/SegmentList'
 import SendPreview from '../components/SendPreview'
-import { generateText, ApiError, MODEL_CHECK } from '../lib/api'
+import { generateText, splitDocAndCheck, ApiError, MODEL_CHECK } from '../lib/api'
 import {
   buildSangyoiSystem,
   buildSangyoiUser,
@@ -59,12 +60,8 @@ function loadDraft(): SangyoiDraft {
   return { interviewType: 'choki', caseId: '', segments: [], elapsedSec: 0, judgment: { ...EMPTY_JUDGMENT } }
 }
 
-function newId(): string {
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-}
-
 interface Props {
-  onGenerated: (result: GenerateResult) => void
+  onGenerated: (result: HistoryRecord) => void
 }
 
 export default function RecordScreen({ onGenerated }: Props) {
@@ -203,11 +200,10 @@ export default function RecordScreen({ onGenerated }: Props) {
         system: buildSangyoiSystem(draft.interviewType),
         user: userText,
       })
-      const marker = '---要確認---'
-      const idx = raw.indexOf(marker)
-      const docText = (idx >= 0 ? raw.slice(0, idx) : raw).trim()
-      const checkText = idx >= 0 ? raw.slice(idx + marker.length).trim() : ''
+      const { docText, checkText } = splitDocAndCheck(raw)
       onGenerated({
+        id: newId(),
+        userText,
         mode: 'sangyoi',
         interviewType: draft.interviewType,
         caseId: draft.caseId,

@@ -1,44 +1,65 @@
 import { useState } from 'react'
-import type { GenerateResult, Mode } from './types'
+import type { HistoryRecord, Mode } from './types'
+import { newId } from './types'
 import RecordScreen from './screens/RecordScreen'
 import HomonRecordScreen from './screens/HomonRecordScreen'
 import ResultScreen from './screens/ResultScreen'
+import HistoryScreen from './screens/HistoryScreen'
 import SettingsScreen from './screens/SettingsScreen'
+import { addHistory } from './lib/db'
+import { generateText, splitDocAndCheck } from './lib/api'
+import { buildSangyoiSystem } from './lib/prompts/sangyoi'
+import { buildHomonSystem } from './lib/prompts/homon'
 
 type Screen = 'record' | 'result' | 'history' | 'settings'
 
-const RESULT_KEY = 'mr_last_result'
 const DRAFT_KEYS: Record<Mode, string> = {
   sangyoi: 'mr_draft_sangyoi',
   homon: 'mr_draft_homon',
 }
 
-function loadLastResult(): GenerateResult | null {
-  try {
-    const raw = localStorage.getItem(RESULT_KEY)
-    return raw ? (JSON.parse(raw) as GenerateResult) : null
-  } catch {
-    return null
-  }
-}
-
 export default function App() {
   const [mode, setMode] = useState<Mode>('sangyoi')
   const [screen, setScreen] = useState<Screen>('record')
-  const [result, setResult] = useState<GenerateResult | null>(loadLastResult)
+  const [result, setResult] = useState<HistoryRecord | null>(null)
   const [recordKey, setRecordKey] = useState(0)
 
-  function handleGenerated(r: GenerateResult) {
+  function handleGenerated(r: HistoryRecord) {
     setResult(r)
-    localStorage.setItem(RESULT_KEY, JSON.stringify(r))
+    // 履歴への保存失敗(プライベートブラウズ等)でも結果表示は続行する
+    void addHistory(r).catch(() => {})
     setScreen('result')
   }
 
   function handleNewInterview() {
     const targetMode = result?.mode ?? mode
     localStorage.removeItem(DRAFT_KEYS[targetMode])
+    setMode(targetMode)
     setRecordKey((k) => k + 1)
     setScreen('record')
+  }
+
+  async function regenerate() {
+    if (!result) return
+    const system =
+      result.mode === 'homon'
+        ? buildHomonSystem()
+        : buildSangyoiSystem(result.interviewType ?? 'other')
+    const raw = await generateText({
+      system,
+      user: result.userText,
+      maxTokens: result.mode === 'homon' ? 8192 : 4096,
+    })
+    const { docText, checkText } = splitDocAndCheck(raw)
+    const rec: HistoryRecord = {
+      ...result,
+      id: newId(),
+      docText,
+      checkText,
+      generatedAt: Date.now(),
+    }
+    setResult(rec)
+    void addHistory(rec).catch(() => {})
   }
 
   return (
@@ -76,43 +97,45 @@ export default function App() {
         ) : screen === 'result' && result ? (
           <ResultScreen
             result={result}
-            onBack={() => setScreen('record')}
+            onBack={() => {
+              setMode(result.mode)
+              setScreen('record')
+            }}
             onNewInterview={handleNewInterview}
+            onRegenerate={regenerate}
           />
         ) : screen === 'history' ? (
-          <div className="screen">
-            <p className="empty-hint">履歴は実装順⑥で追加予定です。</p>
-            {result && (
-              <button className="btn btn-outline" onClick={() => setScreen('result')}>
-                最後に生成した文書を表示
-              </button>
-            )}
-          </div>
+          <HistoryScreen
+            onOpen={(r) => {
+              setResult(r)
+              setScreen('result')
+            }}
+          />
         ) : (
           <SettingsScreen />
         )}
       </main>
 
       <nav className="bottom-nav">
-          <button
-            className={`nav-item ${screen === 'record' || screen === 'result' ? 'nav-active' : ''}`}
-            onClick={() => setScreen('record')}
-          >
-            記録
-          </button>
-          <button
-            className={`nav-item ${screen === 'history' ? 'nav-active' : ''}`}
-            onClick={() => setScreen('history')}
-          >
-            履歴
-          </button>
-          <button
-            className={`nav-item ${screen === 'settings' ? 'nav-active' : ''}`}
-            onClick={() => setScreen('settings')}
-          >
-            設定
-          </button>
-        </nav>
+        <button
+          className={`nav-item ${screen === 'record' || screen === 'result' ? 'nav-active' : ''}`}
+          onClick={() => setScreen('record')}
+        >
+          記録
+        </button>
+        <button
+          className={`nav-item ${screen === 'history' ? 'nav-active' : ''}`}
+          onClick={() => setScreen('history')}
+        >
+          履歴
+        </button>
+        <button
+          className={`nav-item ${screen === 'settings' ? 'nav-active' : ''}`}
+          onClick={() => setScreen('settings')}
+        >
+          設定
+        </button>
+      </nav>
     </div>
   )
 }

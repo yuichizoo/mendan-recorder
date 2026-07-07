@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import type { GenerateResult, HomonDraft, HomonTagSet, Segment } from '../types'
+import type { HistoryRecord, HomonDraft, HomonTagSet, Segment } from '../types'
+import { newId } from '../types'
 import { useTimer, formatTimer } from '../hooks/useTimer'
 import SegmentList from '../components/SegmentList'
 import SendPreview from '../components/SendPreview'
-import { generateText, ApiError, MODEL_CHECK } from '../lib/api'
+import { generateText, splitDocAndCheck, ApiError, MODEL_CHECK } from '../lib/api'
 import {
   buildHomonSystem,
   buildHomonUser,
@@ -68,12 +69,8 @@ function loadDraft(): HomonDraft {
   return { patientId: '', prevKarte: '', segments: [], elapsedSec: 0, tagSet: 'general' }
 }
 
-function newId(): string {
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-}
-
 interface Props {
-  onGenerated: (result: GenerateResult) => void
+  onGenerated: (result: HistoryRecord) => void
 }
 
 export default function HomonRecordScreen({ onGenerated }: Props) {
@@ -182,11 +179,10 @@ export default function HomonRecordScreen({ onGenerated }: Props) {
         system: buildHomonSystem(),
         user: userText,
       })
-      const marker = '---要確認---'
-      const idx = raw.indexOf(marker)
-      const docText = (idx >= 0 ? raw.slice(0, idx) : raw).trim()
-      const checkText = idx >= 0 ? raw.slice(idx + marker.length).trim() : ''
+      const { docText, checkText } = splitDocAndCheck(raw)
       onGenerated({
+        id: newId(),
+        userText,
         mode: 'homon',
         caseId: draft.patientId,
         docText,
