@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { GenerateResult, HomonDraft, HomonTagSet, Segment } from '../types'
 import { useTimer, formatTimer } from '../hooks/useTimer'
 import SegmentList from '../components/SegmentList'
+import SendPreview from '../components/SendPreview'
 import { generateText, ApiError, MODEL_CHECK } from '../lib/api'
 import {
   buildHomonSystem,
@@ -84,6 +85,8 @@ export default function HomonRecordScreen({ onGenerated }: Props) {
   const [checking, setChecking] = useState(false)
   const [checkResult, setCheckResult] = useState<string | null>(null)
   const [checkError, setCheckError] = useState<string | null>(null)
+  const [previewText, setPreviewText] = useState<string | null>(null)
+  const lastUserRef = useRef<string | null>(null)
   const checkPanelRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -154,22 +157,30 @@ export default function HomonRecordScreen({ onGenerated }: Props) {
     }
   }
 
-  async function generate() {
+  function openPreview() {
     timer.pause()
-    setGenerating(true)
     setError(null)
     const now = new Date()
     const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+    setPreviewText(
+      buildHomonUser({
+        patientId: draft.patientId,
+        dateStr,
+        prevKarte: draft.prevKarte,
+        segments: draft.segments,
+      }),
+    )
+  }
+
+  async function generate(userText: string) {
+    lastUserRef.current = userText
+    setGenerating(true)
+    setError(null)
     try {
       const raw = await generateText({
         maxTokens: 8192,
         system: buildHomonSystem(),
-        user: buildHomonUser({
-          patientId: draft.patientId,
-          dateStr,
-          prevKarte: draft.prevKarte,
-          segments: draft.segments,
-        }),
+        user: userText,
       })
       const marker = '---要確認---'
       const idx = raw.indexOf(marker)
@@ -188,6 +199,7 @@ export default function HomonRecordScreen({ onGenerated }: Props) {
       setError(msg)
     } finally {
       setGenerating(false)
+      setPreviewText(null)
     }
   }
 
@@ -311,7 +323,11 @@ export default function HomonRecordScreen({ onGenerated }: Props) {
         <div className="error-box">
           <p>{error}</p>
           <p className="error-safe">メモはこの端末に保存済みです。失われていません。</p>
-          <button className="btn btn-primary" onClick={generate} disabled={generating}>
+          <button
+            className="btn btn-primary"
+            onClick={() => (lastUserRef.current ? generate(lastUserRef.current) : openPreview())}
+            disabled={generating}
+          >
             再試行
           </button>
         </div>
@@ -328,13 +344,23 @@ export default function HomonRecordScreen({ onGenerated }: Props) {
           </button>
           <button
             className="btn btn-generate"
-            onClick={generate}
+            onClick={openPreview}
             disabled={!hasContent || generating || checking}
           >
             {generating ? '生成中…' : 'カルテを生成'}
           </button>
         </div>
       </div>
+
+      {previewText !== null && (
+        <SendPreview
+          userText={previewText}
+          sendLabel="この内容でカルテ生成"
+          sending={generating}
+          onCancel={() => setPreviewText(null)}
+          onSend={generate}
+        />
+      )}
     </div>
   )
 }

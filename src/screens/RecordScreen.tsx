@@ -17,6 +17,7 @@ import {
 } from '../types'
 import { useTimer, formatTimer } from '../hooks/useTimer'
 import SegmentList from '../components/SegmentList'
+import SendPreview from '../components/SendPreview'
 import { generateText, ApiError, MODEL_CHECK } from '../lib/api'
 import {
   buildSangyoiSystem,
@@ -76,6 +77,8 @@ export default function RecordScreen({ onGenerated }: Props) {
   const [checkResult, setCheckResult] = useState<string | null>(null)
   const [checkError, setCheckError] = useState<string | null>(null)
   const [judgmentOpen, setJudgmentOpen] = useState(false)
+  const [previewText, setPreviewText] = useState<string | null>(null)
+  const lastUserRef = useRef<string | null>(null)
   const checkPanelRef = useRef<HTMLDivElement>(null)
 
   // メモが電波・障害で失われないよう常にローカル保存
@@ -174,23 +177,31 @@ export default function RecordScreen({ onGenerated }: Props) {
     }
   }
 
-  async function generate() {
+  function openPreview() {
     timer.pause()
-    setGenerating(true)
     setError(null)
     const now = new Date()
     const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+    setPreviewText(
+      buildSangyoiUser({
+        type: draft.interviewType,
+        caseId: draft.caseId,
+        dateStr,
+        durationSec: timer.elapsedSec,
+        segments: draft.segments,
+        judgment: draft.judgment,
+      }),
+    )
+  }
+
+  async function generate(userText: string) {
+    lastUserRef.current = userText
+    setGenerating(true)
+    setError(null)
     try {
       const raw = await generateText({
         system: buildSangyoiSystem(draft.interviewType),
-        user: buildSangyoiUser({
-          type: draft.interviewType,
-          caseId: draft.caseId,
-          dateStr,
-          durationSec: timer.elapsedSec,
-          segments: draft.segments,
-          judgment: draft.judgment,
-        }),
+        user: userText,
       })
       const marker = '---要確認---'
       const idx = raw.indexOf(marker)
@@ -210,6 +221,7 @@ export default function RecordScreen({ onGenerated }: Props) {
       setError(msg)
     } finally {
       setGenerating(false)
+      setPreviewText(null)
     }
   }
 
@@ -418,7 +430,11 @@ export default function RecordScreen({ onGenerated }: Props) {
         <div className="error-box">
           <p>{error}</p>
           <p className="error-safe">メモはこの端末に保存済みです。失われていません。</p>
-          <button className="btn btn-primary" onClick={generate} disabled={generating}>
+          <button
+            className="btn btn-primary"
+            onClick={() => (lastUserRef.current ? generate(lastUserRef.current) : openPreview())}
+            disabled={generating}
+          >
             再試行
           </button>
         </div>
@@ -435,13 +451,23 @@ export default function RecordScreen({ onGenerated }: Props) {
           </button>
           <button
             className="btn btn-generate"
-            onClick={generate}
+            onClick={openPreview}
             disabled={!hasContent || generating || checking}
           >
             {generating ? '生成中…' : '文書を生成'}
           </button>
         </div>
       </div>
+
+      {previewText !== null && (
+        <SendPreview
+          userText={previewText}
+          sendLabel="この内容で生成"
+          sending={generating}
+          onCancel={() => setPreviewText(null)}
+          onSend={generate}
+        />
+      )}
     </div>
   )
 }
